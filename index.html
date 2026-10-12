@@ -1,0 +1,441 @@
+<title>Run the Town</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout: fixed WebGL night city behind a single scroll column; glass panels float over it,
+     alternating sides as the route is drawn mile by mile. Deliberately dark-only. */
+  :root {
+    --night: #070a14;        /* sky + fog */
+    --ink: #eef1fa;          /* primary text */
+    --mist: #a3abc4;         /* secondary text */
+    --signal: #ffb547;       /* sodium streetlight / route */
+    --ice: #9fb7ff;          /* cool window light */
+    --glass: rgba(22, 28, 52, 0.38);
+    --glass-edge: rgba(214, 224, 255, 0.16);
+    --glass-hi: rgba(255, 255, 255, 0.10);
+    --display: "Syne", "Arial Black", system-ui, sans-serif;
+    --body: "Manrope", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --radius: 22px;
+    color-scheme: dark;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--night);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(7,10,20,0.6) 100%);
+  }
+
+  /* Glass */
+  .glass {
+    background: linear-gradient(155deg, var(--glass-hi), transparent 40%), var(--glass);
+    border: 1px solid var(--glass-edge);
+    border-radius: var(--radius);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 24px 60px -24px rgba(0,0,0,0.6);
+  }
+
+  /* Nav */
+  .nav {
+    position: fixed; z-index: 10; left: 50%; transform: translateX(-50%);
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    width: min(960px, calc(100% - 32px));
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 10px 10px 20px; border-radius: 999px;
+  }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .brand i { width: 10px; height: 10px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 14px var(--signal); }
+  .nav-links { display: flex; gap: 4px; }
+  .nav-links a { color: var(--mist); text-decoration: none; font-size: 14px; font-weight: 500; padding: 8px 14px; border-radius: 999px; transition: color .2s, background .2s; }
+  .nav-links a:hover, .nav-links a.on { color: var(--ink); background: rgba(255,255,255,0.07); }
+  .btn {
+    font: 600 14px/1 var(--body); color: #1a1205; background: var(--signal);
+    border: 0; border-radius: 999px; padding: 12px 18px; cursor: pointer; text-decoration: none;
+    box-shadow: 0 0 0 0 rgba(255,181,71,0.5), 0 8px 24px -8px rgba(255,181,71,0.7);
+    transition: transform .2s, box-shadow .2s; white-space: nowrap;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(255,181,71,0.18), 0 10px 28px -8px rgba(255,181,71,0.8); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--glass-edge); box-shadow: none; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
+
+  /* Scroll column */
+  main { position: relative; z-index: 2; padding-inline: 16px; }
+  section { min-height: 100vh; display: flex; align-items: center; }
+  section > .wrap { width: min(1120px, 100%); margin-inline: auto; display: flex; }
+  section.right > .wrap { justify-content: flex-end; }
+  section.center > .wrap { justify-content: center; }
+
+  .panel { width: min(460px, 100%); padding: 32px; display: grid; gap: 14px; }
+  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--signal); display: flex; align-items: center; gap: 10px; }
+  .eyebrow::before { content: ""; width: 18px; height: 1px; background: currentColor; }
+  h1, h2 { font-family: var(--display); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(56px, 11vw, 132px); }
+  h2 { font-size: clamp(34px, 5vw, 52px); }
+  p { margin: 0; color: var(--mist); max-width: 60ch; }
+  .lede { font-size: 18px; color: var(--ink); opacity: 0.86; }
+
+  .hero .wrap { flex-direction: column; align-items: flex-start; gap: 28px; padding-top: 80px; }
+  .hero h1 span { color: var(--signal); }
+  .hero-card { padding: 20px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; width: auto; }
+  .hero-card p { color: var(--ink); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 6px; border-radius: 14px; overflow: hidden; background: var(--glass-edge); }
+  .stats div { background: rgba(10,14,30,0.55); padding: 12px 14px; display: grid; gap: 2px; }
+  .stats b { font: 500 20px/1.2 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 12px; color: var(--mist); }
+
+  form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  label.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  input[type=email] {
+    flex: 1 1 200px; min-width: 0; font: 500 15px var(--body); color: var(--ink);
+    background: rgba(255,255,255,0.06); border: 1px solid var(--glass-edge); border-radius: 999px; padding: 12px 18px;
+  }
+  input::placeholder { color: var(--mist); opacity: 0.7; }
+  .note { font: 500 12px/1.5 var(--mono); color: var(--mist); }
+  .note.ok { color: var(--signal); }
+
+  footer { position: relative; z-index: 2; text-align: center; padding: 0 16px 40px; font: 500 12px var(--mono); color: var(--mist); }
+
+  /* HUD */
+  .hud {
+    position: fixed; z-index: 10; left: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    padding: 12px 16px; border-radius: 16px; display: grid; gap: 8px; min-width: 190px;
+  }
+  .hud-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font: 500 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mist); }
+  .hud-row b { font-size: 20px; color: var(--ink); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .bar { height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--signal); box-shadow: 0 0 10px var(--signal); }
+
+  /* Panel entrance: visible at rest, lifts slightly when its section is active */
+  .panel, .hero-card { transition: transform .9s cubic-bezier(.2,.7,.2,1), opacity .9s; }
+  section:not(.active) .panel { transform: translateY(18px) scale(0.985); opacity: 0.7; }
+
+  @media (max-width: 720px) {
+    .nav-links { display: none; }
+    .panel { padding: 24px; }
+    section.right > .wrap { justify-content: flex-start; }
+    .hud { min-width: 0; left: 16px; right: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .panel, .hero-card, .btn { transition: none; }
+    section:not(.active) .panel { transform: none; opacity: 1; }
+  }
+</style>
+
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+
+<nav class="nav glass" aria-label="Primary">
+  <a class="brand" href="#start"><i></i>Run the Town</a>
+  <div class="nav-links">
+    <a href="#start" data-sec="start">Start</a>
+    <a href="#route" data-sec="route">The route</a>
+    <a href="#crew" data-sec="crew">The crew</a>
+    <a href="#finish" data-sec="finish">Finish</a>
+  </div>
+  <a class="btn" href="#finish">Get notified</a>
+</nav>
+
+<main>
+  <section id="start" class="hero" data-mile="0">
+    <div class="wrap">
+      <span class="eyebrow">Launching soon · Mile 0.0</span>
+      <h1>Run the<br><span>Town.</span></h1>
+      <div class="hero-card glass">
+        <p>Big things are coming. You're early.</p>
+        <a class="btn ghost" href="#route">Scroll the route ↓</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="route" class="right" data-mile="1.6">
+    <div class="wrap">
+      <article class="panel glass">
+        <span class="eyebrow">Mile 1.6 · The route</span>
+        <h2>Every block is on the map.</h2>
+        <p class="lede">Scroll and watch the line draw itself through the streets.</p>
+        <p>This is where your story goes: what Run the Town is, who it's for, and why the city needs it now. Swap this copy for your own.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="crew" data-mile="3.1">
+    <div class="wrap">
+      <article class="panel glass">
+        <span class="eyebrow">Mile 3.1 · The crew</span>
+        <h2>Built for people who move the city.</h2>
+        <p>Use this panel for proof: the community, the numbers, the neighborhoods. The figures below are placeholders.</p>
+        <div class="stats" aria-label="Placeholder stats">
+          <div><b>5.0</b><span>miles mapped</span></div>
+          <div><b>12</b><span>neighborhoods</span></div>
+          <div><b>1</b><span>town</span></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="finish" class="center" data-mile="5.0">
+    <div class="wrap">
+      <article class="panel glass">
+        <span class="eyebrow">Mile 5.0 · Finish line</span>
+        <h2>Be first through the doors.</h2>
+        <p>Drop your email and we'll tell you the second we open.</p>
+        <form id="notify" novalidate>
+          <label class="sr" for="email">Email address</label>
+          <input id="email" type="email" name="email" placeholder="you@email.com" autocomplete="email" required>
+          <button class="btn" type="submit">Notify me</button>
+        </form>
+        <p class="note" id="note">Preview build: sign-ups are not saved yet.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>© 2026 Run the Town</footer>
+
+<aside class="hud glass" aria-label="Route progress">
+  <div class="hud-row"><span>Distance</span><b id="mi">0.0</b></div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="hud-row"><span id="leg">Start line</span><span>5.0 mi</span></div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TOTAL_MI = 5.0;
+
+  /* ---------- UI: sections, HUD, form ---------- */
+  const sections = [...document.querySelectorAll('main section')];
+  const links = [...document.querySelectorAll('.nav-links a')];
+  const legNames = { start: 'Start line', route: 'The route', crew: 'The crew', finish: 'Finish line' };
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      sections.forEach(s => s.classList.toggle('active', s === e.target));
+      links.forEach(a => a.classList.toggle('on', a.dataset.sec === e.target.id));
+      document.getElementById('leg').textContent = legNames[e.target.id];
+    });
+  }, { threshold: 0.55 });
+  sections.forEach(s => io.observe(s));
+  sections[0].classList.add('active');
+
+  document.getElementById('notify').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = document.getElementById('email');
+    const note = document.getElementById('note');
+    if (!input.checkValidity() || !input.value) {
+      note.className = 'note';
+      note.textContent = 'Enter an email address like name@example.com.';
+      input.focus();
+      return;
+    }
+    note.className = 'note ok';
+    note.textContent = "Looks good. In the live site this adds " + input.value + " to the list.";
+  });
+
+  const miEl = document.getElementById('mi'), barEl = document.getElementById('bar');
+  function scrollProgress() {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    return max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0;
+  }
+
+  /* ---------- 3D night city ---------- */
+  if (!window.THREE) { updateHud(scrollProgress()); addEventListener('scroll', () => updateHud(scrollProgress())); return; }
+  const canvas = document.getElementById('scene');
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+  catch (err) { return; }
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x070a14);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x070a14, 0.014);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
+
+  scene.add(new THREE.HemisphereLight(0x7d8fd6, 0x0a0d1a, 0.9));
+  const moon = new THREE.DirectionalLight(0x9fb7ff, 0.8);
+  moon.position.set(-20, 40, 10);
+  scene.add(moon);
+
+  // Seeded random so the skyline is the same on every visit
+  let seed = 7;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  // Window texture
+  function windowTexture() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0a0f1f'; g.fillRect(0, 0, 64, 64);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+      const r = rand();
+      g.fillStyle = r < 0.3 ? '#ffcf7a' : r < 0.46 ? '#c4d1ff' : '#1a2242';
+      g.fillRect(x * 16 + 4, y * 8 + 2, 8, 4);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.NearestFilter;
+    return t;
+  }
+  const winTex = windowTexture();
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x2a3358, emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 1.1, roughness: 0.85, metalness: 0.1 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x1c2442, roughness: 1 });
+  const mats = [sideMat, sideMat, roofMat, roofMat, sideMat, sideMat];
+
+  // Buildings: grid of cells, streets every 4th line, height buckets so windows keep their size
+  const N = 40, BUCKETS = [1, 2, 3.5, 5.5, 8.5];
+  const cells = BUCKETS.map(() => []);
+  for (let i = -N; i < N; i++) for (let j = -N; j < N; j++) {
+    if (i % 4 === 0 || j % 4 === 0) continue;
+    if (rand() < 0.12) continue; // a few empty lots
+    const d = Math.hypot(i, j) / N;
+    const h = Math.pow(rand(), 1.6) * (1 - d * 0.75) * 9 + 0.6;
+    let b = 0; while (b < BUCKETS.length - 1 && h > BUCKETS[b]) b++;
+    cells[b].push([i, j]);
+  }
+  const dummy = new THREE.Object3D();
+  BUCKETS.forEach((h, b) => {
+    if (!cells[b].length) return;
+    const geo = new THREE.BoxGeometry(0.82, h, 0.82);
+    geo.translate(0, h / 2, 0);
+    const uv = geo.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * h / 2);
+    const mesh = new THREE.InstancedMesh(geo, mats, cells[b].length);
+    cells[b].forEach(([i, j], n) => {
+      dummy.position.set(i, 0, j);
+      dummy.rotation.y = 0;
+      dummy.scale.set(0.85 + rand() * 0.2, 1, 0.85 + rand() * 0.2);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(n, dummy.matrix);
+    });
+    scene.add(mesh);
+  });
+
+  // Ground + street grid
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x0d1122, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+  const grid = new THREE.GridHelper(N * 2, N / 2, 0x3a4a8c, 0x26315e);
+  grid.position.y = 0.01;
+  grid.material.transparent = true; grid.material.opacity = 0.6;
+  scene.add(grid);
+
+  // Route through street intersections, corners rounded tightly so it stays on the streets
+  const corners = [[-24, 28], [-24, 8], [-8, 8], [-8, -8], [8, -8], [8, 12], [20, 12], [20, -20], [0, -20], [0, -32]];
+  const pts = [];
+  corners.forEach((c, k) => {
+    const v = new THREE.Vector3(c[0], 0.08, c[1]);
+    if (k === 0 || k === corners.length - 1) { pts.push(v); return; }
+    const prev = new THREE.Vector3(corners[k - 1][0], 0.08, corners[k - 1][1]);
+    const next = new THREE.Vector3(corners[k + 1][0], 0.08, corners[k + 1][1]);
+    pts.push(v.clone().add(prev.clone().sub(v).setLength(0.9)));
+    pts.push(v.clone().add(next.clone().sub(v).setLength(0.9)));
+  });
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  const SEG = 800, RAD = 8;
+  const tubeGeo = new THREE.TubeGeometry(curve, SEG, 0.14, RAD, false);
+  const tube = new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0xffb547 }));
+  scene.add(tube);
+  const glowGeo = new THREE.TubeGeometry(curve, SEG, 0.5, RAD, false);
+  const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending }));
+  scene.add(glow);
+  const ghost = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getSpacedPoints(400)), new THREE.LineDashedMaterial({ color: 0x9fb7ff, transparent: true, opacity: 0.35, dashSize: 0.5, gapSize: 0.5 }));
+  ghost.computeLineDistances();
+  ghost.position.y = 0.02;
+  scene.add(ghost);
+
+  // Runner: glowing head with its own light and a pulse ring
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff1d6 }));
+  const headLight = new THREE.PointLight(0xffb547, 3, 14, 2);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 48), new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  scene.add(head, headLight, ring);
+
+  // Floating dust for depth
+  const dustGeo = new THREE.BufferGeometry();
+  const dust = new Float32Array(600 * 3);
+  for (let k = 0; k < 600; k++) { dust[k * 3] = (rand() - 0.5) * 80; dust[k * 3 + 1] = rand() * 14 + 1; dust[k * 3 + 2] = (rand() - 0.5) * 80; }
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dust, 3));
+  const dustPts = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0x9fb7ff, size: 0.06, transparent: true, opacity: 0.6 }));
+  scene.add(dustPts);
+
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.fov = w < 720 ? 62 : 50;
+    camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  let mx = 0, my = 0;
+  addEventListener('pointermove', e => { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; });
+
+  const camPos = new THREE.Vector3(), look = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const centre = new THREE.Vector3(-2, 0, -2);
+  const smooth = THREE.MathUtils.smoothstep;
+  let p = reduce ? scrollProgress() : 0;
+  let first = true;
+
+  function cameraFor(t, out, outLook) {
+    const at = curve.getPointAt(Math.min(0.999, Math.max(0.001, t)));
+    const tan = curve.getTangentAt(Math.min(0.999, Math.max(0.001, t)));
+    // chase cam: behind and above the runner, with a slight side offset
+    const side = new THREE.Vector3(-tan.z, 0, tan.x);
+    const chase = at.clone().addScaledVector(tan, -8).addScaledVector(side, 3).add(new THREE.Vector3(0, 6, 0));
+    // overview at the start and finish
+    const over = new THREE.Vector3(14, 30, 30);
+    const k = Math.max(1 - smooth(t, 0, 0.14), smooth(t, 0.88, 1));
+    out.copy(chase).lerp(over, k);
+    outLook.copy(at).lerp(centre, k);
+  }
+
+  function updateHud(t) {
+    miEl.textContent = (t * TOTAL_MI).toFixed(1);
+    barEl.style.width = (t * 100).toFixed(1) + '%';
+  }
+
+  const clock = new THREE.Clock();
+  function frame() {
+    const time = clock.getElapsedTime();
+    const target = scrollProgress();
+    p = reduce ? target : p + (target - p) * 0.07;
+    updateHud(p);
+
+    const segs = Math.floor(p * SEG);
+    tubeGeo.setDrawRange(0, segs * RAD * 6);
+    glowGeo.setDrawRange(0, segs * RAD * 6);
+    const hp = curve.getPointAt(Math.min(0.9999, Math.max(0, p)));
+    head.position.copy(hp).setY(0.4 + (reduce ? 0 : Math.sin(time * 4) * 0.05));
+    headLight.position.copy(hp).setY(1.2);
+    ring.position.copy(hp).setY(0.06);
+    const pulse = reduce ? 0.5 : (time * 0.8) % 1;
+    ring.scale.setScalar(1 + pulse * 3);
+    ring.material.opacity = 0.8 * (1 - pulse);
+
+    cameraFor(p, tmp, look);
+    if (!reduce) tmp.add(new THREE.Vector3(mx * 2.5, -my * 1.5, 0));
+    if (first || reduce) { camPos.copy(tmp); first = false; } else camPos.lerp(tmp, 0.12);
+    camera.position.copy(camPos);
+    camera.lookAt(look);
+
+    if (!reduce) dustPts.rotation.y = time * 0.01;
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>
