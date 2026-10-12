@@ -1,192 +1,275 @@
 <title>Run the Town</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600&display=swap">
 <style>
-  /* Layout: fixed WebGL night city behind a single scroll column; glass panels float over it,
-     alternating sides as the route is drawn mile by mile. Deliberately dark-only. */
+  /* Layout: a soft clay-white 3D town (night in dark mode) fixed behind one scroll column;
+     frosted milk-glass widgets float over it, alternating sides as the route draws mile by mile. */
   :root {
-    --night: #070a14;        /* sky + fog */
-    --ink: #eef1fa;          /* primary text */
-    --mist: #a3abc4;         /* secondary text */
-    --signal: #ffb547;       /* sodium streetlight / route */
-    --ice: #9fb7ff;          /* cool window light */
-    --glass: rgba(22, 28, 52, 0.38);
-    --glass-edge: rgba(214, 224, 255, 0.16);
-    --glass-hi: rgba(255, 255, 255, 0.10);
-    --display: "Syne", "Arial Black", system-ui, sans-serif;
-    --body: "Manrope", "Segoe UI", system-ui, sans-serif;
-    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-    --radius: 22px;
+    --bg: #e4e9f3;
+    --orb-a: #c6d3f1;
+    --orb-b: #e3d9f6;
+    --ink: #1b2236;
+    --muted: #5d6680;
+    --accent: #5b6cf0;
+    --accent-2: #8b6df0;
+    --glass: rgba(255, 255, 255, 0.36);
+    --glass-tile: rgba(255, 255, 255, 0.40);
+    --edge: rgba(255, 255, 255, 0.75);
+    --hairline: rgba(110, 125, 170, 0.18);
+    --sheen: rgba(255, 255, 255, 0.45);
+    --shadow: rgba(60, 75, 130, 0.22);
+    --font: "Manrope", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+    --r-xl: 30px;
+    --r-lg: 22px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1222; --orb-a: #1b2747; --orb-b: #251e44; --ink: #e8ecf7; --muted: #98a2bc;
+      --accent: #8593ff; --accent-2: #a68cff;
+      --glass: rgba(26, 34, 56, 0.42); --glass-tile: rgba(255, 255, 255, 0.04);
+      --edge: rgba(255, 255, 255, 0.10); --hairline: rgba(0, 0, 0, 0.35);
+      --sheen: rgba(255, 255, 255, 0.06); --shadow: rgba(0, 0, 0, 0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1222; --orb-a: #1b2747; --orb-b: #251e44; --ink: #e8ecf7; --muted: #98a2bc;
+    --accent: #8593ff; --accent-2: #a68cff;
+    --glass: rgba(26, 34, 56, 0.42); --glass-tile: rgba(255, 255, 255, 0.04);
+    --edge: rgba(255, 255, 255, 0.10); --hairline: rgba(0, 0, 0, 0.35);
+    --sheen: rgba(255, 255, 255, 0.06); --shadow: rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
+
+  [hidden] { display: none !important; }
   html { scroll-behavior: smooth; }
   body {
-    background: var(--night);
+    background: var(--bg);
     color: var(--ink);
-    font-family: var(--body);
+    font-family: var(--font);
     font-size: 16px;
+    font-weight: 400;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-  }
-  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
-  .vignette {
-    position: fixed; inset: 0; pointer-events: none; z-index: 1;
-    background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(7,10,20,0.6) 100%);
+    transition: background-color .6s, color .6s;
   }
 
-  /* Glass */
+  /* Soft sky: two blurred orbs behind the transparent WebGL canvas */
+  .sky { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .sky i { position: absolute; border-radius: 50%; filter: blur(40px); opacity: 0.9; transition: background .6s; }
+  .sky i:nth-child(1) { width: 60vmax; height: 60vmax; left: -18vmax; top: -22vmax; background: var(--orb-a); }
+  .sky i:nth-child(2) { width: 46vmax; height: 46vmax; right: -14vmax; top: 6vmax; background: var(--orb-b); }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
+
+  /* Frosted glass */
   .glass {
-    background: linear-gradient(155deg, var(--glass-hi), transparent 40%), var(--glass);
-    border: 1px solid var(--glass-edge);
-    border-radius: var(--radius);
-    -webkit-backdrop-filter: blur(18px) saturate(150%);
-    backdrop-filter: blur(18px) saturate(150%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 24px 60px -24px rgba(0,0,0,0.6);
+    position: relative;
+    background: var(--glass);
+    border: 1px solid var(--edge);
+    border-radius: var(--r-xl);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    backdrop-filter: blur(28px) saturate(170%);
+    box-shadow: inset 0 1px 0 var(--edge), 0 0 0 1px var(--hairline), 0 30px 60px -32px var(--shadow);
+    transition: background .6s, border-color .6s;
   }
+  .glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(140deg, var(--sheen), transparent 45%);
+  }
+  .glass > * { position: relative; }
 
   /* Nav */
   .nav {
     position: fixed; z-index: 10; left: 50%; transform: translateX(-50%);
     top: calc(env(safe-area-inset-top, 0px) + 16px);
-    width: min(960px, calc(100% - 32px));
+    width: min(980px, calc(100% - 32px));
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 10px 10px 20px; border-radius: 999px;
+    padding: 8px 8px 8px 22px; border-radius: 999px;
   }
-  .brand { font-family: var(--display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 10px; }
-  .brand i { width: 10px; height: 10px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 14px var(--signal); }
-  .nav-links { display: flex; gap: 4px; }
-  .nav-links a { color: var(--mist); text-decoration: none; font-size: 14px; font-weight: 500; padding: 8px 14px; border-radius: 999px; transition: color .2s, background .2s; }
-  .nav-links a:hover, .nav-links a.on { color: var(--ink); background: rgba(255,255,255,0.07); }
+  .brand { font-weight: 500; font-size: 16px; letter-spacing: 0.02em; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .brand svg { width: 18px; height: 18px; color: var(--accent); }
+  .nav-links { display: flex; gap: 2px; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; padding: 8px 14px; border-radius: 999px; transition: color .2s, background .2s; }
+  .nav-links a:hover, .nav-links a.on { color: var(--ink); background: var(--glass-tile); box-shadow: inset 0 0 0 1px var(--edge); }
+  .nav-end { display: flex; gap: 6px; align-items: center; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    color: var(--ink); background: var(--glass-tile); border: 1px solid var(--edge);
+  }
+  .icon-btn svg { width: 18px; height: 18px; }
   .btn {
-    font: 600 14px/1 var(--body); color: #1a1205; background: var(--signal);
-    border: 0; border-radius: 999px; padding: 12px 18px; cursor: pointer; text-decoration: none;
-    box-shadow: 0 0 0 0 rgba(255,181,71,0.5), 0 8px 24px -8px rgba(255,181,71,0.7);
-    transition: transform .2s, box-shadow .2s; white-space: nowrap;
+    font: 500 14px/1 var(--font); color: #fff; letter-spacing: 0.01em;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: 0; border-radius: 999px; padding: 13px 20px; cursor: pointer; text-decoration: none; white-space: nowrap;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 24px -10px var(--accent);
+    transition: transform .2s, box-shadow .2s;
   }
-  .btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(255,181,71,0.18), 0 10px 28px -8px rgba(255,181,71,0.8); }
-  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--glass-edge); box-shadow: none; }
-  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
+  .btn:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 14px 30px -10px var(--accent); }
+  .btn.soft { background: var(--glass-tile); color: var(--ink); box-shadow: inset 0 0 0 1px var(--edge), 0 10px 30px -18px var(--shadow); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
   /* Scroll column */
   main { position: relative; z-index: 2; padding-inline: 16px; }
-  section { min-height: 100vh; display: flex; align-items: center; }
-  section > .wrap { width: min(1120px, 100%); margin-inline: auto; display: flex; }
+  section { min-height: 100vh; display: flex; align-items: center; padding-block: 96px; box-sizing: border-box; }
+  section > .wrap { width: min(1100px, 100%); margin-inline: auto; display: flex; }
   section.right > .wrap { justify-content: flex-end; }
   section.center > .wrap { justify-content: center; }
 
-  .panel { width: min(460px, 100%); padding: 32px; display: grid; gap: 14px; }
-  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--signal); display: flex; align-items: center; gap: 10px; }
-  .eyebrow::before { content: ""; width: 18px; height: 1px; background: currentColor; }
-  h1, h2 { font-family: var(--display); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; margin: 0; text-wrap: balance; }
-  h1 { font-size: clamp(56px, 11vw, 132px); }
-  h2 { font-size: clamp(34px, 5vw, 52px); }
-  p { margin: 0; color: var(--mist); max-width: 60ch; }
-  .lede { font-size: 18px; color: var(--ink); opacity: 0.86; }
+  .panel { width: min(440px, 100%); padding: 30px; display: grid; gap: 14px; box-sizing: border-box; }
+  .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+  h1, h2 { font-weight: 300; margin: 0; text-wrap: balance; color: var(--ink); }
+  h1 { font-size: clamp(52px, 9vw, 112px); line-height: 1; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(30px, 4vw, 40px); line-height: 1.12; letter-spacing: -0.01em; }
+  p { margin: 0; color: var(--muted); max-width: 60ch; }
+  .tagline { font-size: 15px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); opacity: .8; }
 
-  .hero .wrap { flex-direction: column; align-items: flex-start; gap: 28px; padding-top: 80px; }
-  .hero h1 span { color: var(--signal); }
-  .hero-card { padding: 20px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; width: auto; }
-  .hero-card p { color: var(--ink); }
+  /* Hero */
+  .hero .wrap { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; }
+  .hero-copy { display: grid; gap: 22px; justify-items: start; }
+  .hero-widgets { display: grid; gap: 14px; }
+  .w-main { display: grid; grid-template-columns: 1fr auto; gap: 22px; padding: 26px 28px; align-items: center; }
+  .w-main .big { font-size: 44px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
+  .w-main .big small { font-size: 18px; color: var(--muted); margin-left: 4px; }
+  .w-main .status { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--ink); font-size: 15px; }
+  .w-main .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .w-date { border-left: 1px solid var(--hairline); padding-left: 22px; display: grid; gap: 2px; color: var(--muted); font-size: 14px; }
+  .w-date b { font-size: 40px; font-weight: 300; line-height: 1.05; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .w-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .w-small { padding: 18px 20px; border-radius: var(--r-lg); display: grid; gap: 4px; }
+  .w-small span { font-size: 13px; color: var(--muted); }
+  .w-small b { font-size: 22px; font-weight: 400; font-variant-numeric: tabular-nums; }
 
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 6px; border-radius: 14px; overflow: hidden; background: var(--glass-edge); }
-  .stats div { background: rgba(10,14,30,0.55); padding: 12px 14px; display: grid; gap: 2px; }
-  .stats b { font: 500 20px/1.2 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
-  .stats span { font-size: 12px; color: var(--mist); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
+  .tile { background: var(--glass-tile); border: 1px solid var(--edge); border-radius: 18px; padding: 14px; display: grid; gap: 2px; }
+  .tile b { font-size: 24px; font-weight: 400; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 12px; color: var(--muted); }
 
-  form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  form { display: flex; gap: 8px; padding: 6px; border-radius: 999px; background: var(--glass-tile); border: 1px solid var(--edge); margin-top: 6px; }
   label.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   input[type=email] {
-    flex: 1 1 200px; min-width: 0; font: 500 15px var(--body); color: var(--ink);
-    background: rgba(255,255,255,0.06); border: 1px solid var(--glass-edge); border-radius: 999px; padding: 12px 18px;
+    flex: 1 1 auto; min-width: 0; font: 400 15px var(--font); color: var(--ink);
+    background: transparent; border: 0; padding: 0 14px;
   }
-  input::placeholder { color: var(--mist); opacity: 0.7; }
-  .note { font: 500 12px/1.5 var(--mono); color: var(--mist); }
-  .note.ok { color: var(--signal); }
+  input[type=email]:focus-visible { outline: none; }
+  form:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+  input::placeholder { color: var(--muted); opacity: 0.8; }
+  .note { font-size: 13px; color: var(--muted); }
+  .note.ok { color: var(--accent); }
 
-  footer { position: relative; z-index: 2; text-align: center; padding: 0 16px 40px; font: 500 12px var(--mono); color: var(--mist); }
+  footer { position: relative; z-index: 2; text-align: center; padding: 0 16px 40px; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
 
-  /* HUD */
+  /* HUD: progress ring widget */
   .hud {
     position: fixed; z-index: 10; left: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
-    padding: 12px 16px; border-radius: 16px; display: grid; gap: 8px; min-width: 190px;
+    padding: 12px 18px 12px 12px; border-radius: 24px; display: flex; align-items: center; gap: 12px;
   }
-  .hud-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font: 500 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mist); }
-  .hud-row b { font-size: 20px; color: var(--ink); letter-spacing: 0; font-variant-numeric: tabular-nums; }
-  .bar { height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; width: 0; background: var(--signal); box-shadow: 0 0 10px var(--signal); }
+  .ring { width: 54px; height: 54px; position: relative; display: grid; place-items: center; }
+  .ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 4; }
+  .ring .track { stroke: var(--hairline); }
+  .ring .val { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 144.5; stroke-dashoffset: 144.5; }
+  .ring b { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hud-text { display: grid; line-height: 1.3; }
+  .hud-text b { font-weight: 500; font-size: 14px; }
+  .hud-text span { font-size: 12px; color: var(--muted); }
 
-  /* Panel entrance: visible at rest, lifts slightly when its section is active */
-  .panel, .hero-card { transition: transform .9s cubic-bezier(.2,.7,.2,1), opacity .9s; }
-  section:not(.active) .panel { transform: translateY(18px) scale(0.985); opacity: 0.7; }
+  .panel, .hero-widgets { transition: transform .9s cubic-bezier(.2,.7,.2,1), opacity .9s; }
+  section:not(.active) .panel { transform: translateY(16px); opacity: 0.75; }
 
-  @media (max-width: 720px) {
+  @media (max-width: 820px) {
     .nav-links { display: none; }
-    .panel { padding: 24px; }
+    .hero .wrap { grid-template-columns: 1fr; }
     section.right > .wrap { justify-content: flex-start; }
-    .hud { min-width: 0; left: 16px; right: auto; }
+    .panel { padding: 24px; }
+    .stats { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .tagline { letter-spacing: 0.2em; font-size: 13px; }
+    .hud { padding: 8px; border-radius: 50%; }
+    .hud-text { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .panel, .hero-card, .btn { transition: none; }
+    .panel, .hero-widgets, .btn, body, .glass, .sky i { transition: none; }
     section:not(.active) .panel { transform: none; opacity: 1; }
   }
 </style>
 
+<div class="sky" aria-hidden="true"><i></i><i></i></div>
 <canvas id="scene" aria-hidden="true"></canvas>
-<div class="vignette"></div>
 
 <nav class="nav glass" aria-label="Primary">
-  <a class="brand" href="#start"><i></i>Run the Town</a>
+  <a class="brand" href="#start">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V9h5V4h6v8h5v8"/><circle cx="12" cy="20" r="1.2" fill="currentColor"/></svg>
+    Run the Town
+  </a>
   <div class="nav-links">
     <a href="#start" data-sec="start">Start</a>
     <a href="#route" data-sec="route">The route</a>
     <a href="#crew" data-sec="crew">The crew</a>
     <a href="#finish" data-sec="finish">Finish</a>
   </div>
-  <a class="btn" href="#finish">Get notified</a>
+  <div class="nav-end">
+    <button class="icon-btn" id="theme" type="button" aria-label="Switch to dark mode">
+      <svg id="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+      <svg id="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" hidden><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <a class="btn" href="#finish">Get notified</a>
+  </div>
 </nav>
 
 <main>
-  <section id="start" class="hero" data-mile="0">
+  <section id="start" class="hero">
     <div class="wrap">
-      <span class="eyebrow">Launching soon · Mile 0.0</span>
-      <h1>Run the<br><span>Town.</span></h1>
-      <div class="hero-card glass">
-        <p>Big things are coming. You're early.</p>
-        <a class="btn ghost" href="#route">Scroll the route ↓</a>
+      <div class="hero-copy">
+        <span class="eyebrow">Launching soon</span>
+        <h1>Run the Town</h1>
+        <p class="tagline">Big things are coming.</p>
+        <a class="btn soft" href="#route">Scroll the route ↓</a>
+      </div>
+      <div class="hero-widgets">
+        <div class="glass w-main">
+          <div>
+            <div class="big">5.0<small>mi</small></div>
+            <div class="status"><i></i>Route ready</div>
+            <p style="font-size:14px">You're early. Enjoy the run.</p>
+          </div>
+          <div class="w-date"><span id="d-day">Monday</span><b id="d-num">12</b><span id="d-mon">Oct</span></div>
+        </div>
+        <div class="w-row">
+          <div class="glass w-small"><span>Stops</span><b>4</b></div>
+          <div class="glass w-small"><span>Doors open</span><b>Soon</b></div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section id="route" class="right" data-mile="1.6">
+  <section id="route" class="right">
     <div class="wrap">
       <article class="panel glass">
         <span class="eyebrow">Mile 1.6 · The route</span>
         <h2>Every block is on the map.</h2>
-        <p class="lede">Scroll and watch the line draw itself through the streets.</p>
-        <p>This is where your story goes: what Run the Town is, who it's for, and why the city needs it now. Swap this copy for your own.</p>
+        <p>Scroll and the line draws itself through the streets. Use this panel to say what Run the Town is, who it's for, and why the city needs it now.</p>
       </article>
     </div>
   </section>
 
-  <section id="crew" data-mile="3.1">
+  <section id="crew">
     <div class="wrap">
       <article class="panel glass">
         <span class="eyebrow">Mile 3.1 · The crew</span>
         <h2>Built for people who move the city.</h2>
-        <p>Use this panel for proof: the community, the numbers, the neighborhoods. The figures below are placeholders.</p>
+        <p>Use this panel for proof: the community, the numbers, the neighborhoods. These figures are placeholders.</p>
         <div class="stats" aria-label="Placeholder stats">
-          <div><b>5.0</b><span>miles mapped</span></div>
-          <div><b>12</b><span>neighborhoods</span></div>
-          <div><b>1</b><span>town</span></div>
+          <div class="tile"><b>5.0</b><span>miles mapped</span></div>
+          <div class="tile"><b>12</b><span>neighborhoods</span></div>
+          <div class="tile"><b>1</b><span>town</span></div>
         </div>
       </article>
     </div>
   </section>
 
-  <section id="finish" class="center" data-mile="5.0">
+  <section id="finish" class="center">
     <div class="wrap">
       <article class="panel glass">
         <span class="eyebrow">Mile 5.0 · Finish line</span>
@@ -203,21 +286,47 @@
   </section>
 </main>
 
-<footer>© 2026 Run the Town</footer>
+<footer>Clean. Calm. Run the Town. · © 2026</footer>
 
 <aside class="hud glass" aria-label="Route progress">
-  <div class="hud-row"><span>Distance</span><b id="mi">0.0</b></div>
-  <div class="bar"><i id="bar"></i></div>
-  <div class="hud-row"><span id="leg">Start line</span><span>5.0 mi</span></div>
+  <div class="ring">
+    <svg viewBox="0 0 54 54"><circle class="track" cx="27" cy="27" r="23"/><circle class="val" id="ring" cx="27" cy="27" r="23"/></svg>
+    <b id="pct">0%</b>
+  </div>
+  <div class="hud-text"><b><span id="mi">0.0</span> of 5.0 mi</b><span id="leg">Start line</span></div>
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function () {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const TOTAL_MI = 5.0;
+  const TOTAL_MI = 5.0, RING_LEN = 2 * Math.PI * 23;
+  const root = document.documentElement;
+  const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+  const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : darkMQ.matches;
 
-  /* ---------- UI: sections, HUD, form ---------- */
+  /* ---------- Live date widget ---------- */
+  const now = new Date();
+  document.getElementById('d-day').textContent = now.toLocaleDateString('en-US', { weekday: 'long' });
+  document.getElementById('d-num').textContent = now.getDate();
+  document.getElementById('d-mon').textContent = now.toLocaleDateString('en-US', { month: 'short' });
+
+  /* ---------- Theme toggle ---------- */
+  try { const saved = localStorage.getItem('rtt-theme'); if (saved) root.dataset.theme = saved; } catch (e) {}
+  const themeBtn = document.getElementById('theme');
+  function syncThemeIcon() {
+    const d = isDark();
+    document.getElementById('ico-moon').hidden = d;
+    document.getElementById('ico-sun').hidden = !d;
+    themeBtn.setAttribute('aria-label', d ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+  themeBtn.addEventListener('click', () => {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    try { localStorage.setItem('rtt-theme', root.dataset.theme); } catch (e) {}
+  });
+  syncThemeIcon();
+
+  /* ---------- Sections, HUD, form ---------- */
   const sections = [...document.querySelectorAll('main section')];
   const links = [...document.querySelectorAll('.nav-links a')];
   const legNames = { start: 'Start line', route: 'The route', crew: 'The crew', finish: 'Finish line' };
@@ -228,7 +337,7 @@
       links.forEach(a => a.classList.toggle('on', a.dataset.sec === e.target.id));
       document.getElementById('leg').textContent = legNames[e.target.id];
     });
-  }, { threshold: 0.55 });
+  }, { threshold: 0.5 });
   sections.forEach(s => io.observe(s));
   sections[0].classList.add('active');
 
@@ -236,72 +345,91 @@
     e.preventDefault();
     const input = document.getElementById('email');
     const note = document.getElementById('note');
-    if (!input.checkValidity() || !input.value) {
+    if (!input.value || !input.checkValidity()) {
       note.className = 'note';
       note.textContent = 'Enter an email address like name@example.com.';
       input.focus();
       return;
     }
     note.className = 'note ok';
-    note.textContent = "Looks good. In the live site this adds " + input.value + " to the list.";
+    note.textContent = 'Looks good. On the live site this adds ' + input.value + ' to the list.';
   });
 
-  const miEl = document.getElementById('mi'), barEl = document.getElementById('bar');
+  const miEl = document.getElementById('mi'), pctEl = document.getElementById('pct'), ringEl = document.getElementById('ring');
+  ringEl.style.strokeDasharray = RING_LEN;
+  function updateHud(t) {
+    miEl.textContent = (t * TOTAL_MI).toFixed(1);
+    pctEl.textContent = Math.round(t * 100) + '%';
+    ringEl.style.strokeDashoffset = RING_LEN * (1 - t);
+  }
   function scrollProgress() {
-    const max = document.documentElement.scrollHeight - innerHeight;
+    const max = root.scrollHeight - innerHeight;
     return max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0;
   }
 
-  /* ---------- 3D night city ---------- */
+  /* ---------- 3D town ---------- */
+  const onTheme = [syncThemeIcon];
+  new MutationObserver(() => onTheme.forEach(f => f())).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  darkMQ.addEventListener('change', () => onTheme.forEach(f => f()));
+
   if (!window.THREE) { updateHud(scrollProgress()); addEventListener('scroll', () => updateHud(scrollProgress())); return; }
   const canvas = document.getElementById('scene');
   let renderer;
-  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' }); }
   catch (err) { return; }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0x070a14);
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const PAL = {
+    light: { bg: 0xe4e9f3, bld: 0xf3f5fb, roof: 0xffffff, ground: 0xe1e6f1, grid: 0xc9d1e4, accent: 0x5b6cf0, head: 0xffffff,
+             sky: 0xffffff, gnd: 0xb7c2dd, hemi: 0.95, sun: 0xfff6ea, sunI: 1.0, win: 0.0, fog: 0.026, glow: 0.6 },
+    dark:  { bg: 0x0c1222, bld: 0x222b4a, roof: 0x2a3456, ground: 0x10172b, grid: 0x28324f, accent: 0x8593ff, head: 0xeef0ff,
+             sky: 0x8090d8, gnd: 0x060912, hemi: 0.55, sun: 0xa9bdff, sunI: 0.45, win: 0.9, fog: 0.02, glow: 3 }
+  };
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x070a14, 0.014);
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
+  scene.fog = new THREE.FogExp2(0xe4e9f3, 0.017);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
 
-  scene.add(new THREE.HemisphereLight(0x7d8fd6, 0x0a0d1a, 0.9));
-  const moon = new THREE.DirectionalLight(0x9fb7ff, 0.8);
-  moon.position.set(-20, 40, 10);
-  scene.add(moon);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xb7c2dd, 0.95);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff6ea, 1);
+  sun.position.set(-18, 34, 14);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 120 });
+  sun.shadow.bias = -0.0006;
+  sun.shadow.radius = 4;
+  scene.add(sun);
 
-  // Seeded random so the skyline is the same on every visit
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
-  // Window texture
   function windowTexture() {
     const c = document.createElement('canvas'); c.width = 64; c.height = 64;
     const g = c.getContext('2d');
-    g.fillStyle = '#0a0f1f'; g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#000'; g.fillRect(0, 0, 64, 64);
     for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
       const r = rand();
-      g.fillStyle = r < 0.3 ? '#ffcf7a' : r < 0.46 ? '#c4d1ff' : '#1a2242';
-      g.fillRect(x * 16 + 4, y * 8 + 2, 8, 4);
+      if (r < 0.28) { g.fillStyle = r < 0.16 ? '#ffd9a0' : '#c9d4ff'; g.fillRect(x * 16 + 4, y * 8 + 2, 8, 4); }
     }
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.magFilter = THREE.NearestFilter;
     return t;
   }
-  const winTex = windowTexture();
-  const sideMat = new THREE.MeshStandardMaterial({ color: 0x2a3358, emissive: 0xffffff, emissiveMap: winTex, emissiveIntensity: 1.1, roughness: 0.85, metalness: 0.1 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x1c2442, roughness: 1 });
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0xf3f5fb, roughness: 0.92, metalness: 0, transparent: false, emissive: 0xffffff, emissiveMap: windowTexture(), emissiveIntensity: 0 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
   const mats = [sideMat, sideMat, roofMat, roofMat, sideMat, sideMat];
 
-  // Buildings: grid of cells, streets every 4th line, height buckets so windows keep their size
   const N = 40, BUCKETS = [1, 2, 3.5, 5.5, 8.5];
   const cells = BUCKETS.map(() => []);
   for (let i = -N; i < N; i++) for (let j = -N; j < N; j++) {
     if (i % 4 === 0 || j % 4 === 0) continue;
-    if (rand() < 0.12) continue; // a few empty lots
+    if (rand() < 0.12) continue;
     const d = Math.hypot(i, j) / N;
-    const h = Math.pow(rand(), 1.6) * (1 - d * 0.75) * 9 + 0.6;
+    const h = Math.pow(rand(), 1.9) * (1 - d * 0.75) * 7.5 + 0.5;
     let b = 0; while (b < BUCKETS.length - 1 && h > BUCKETS[b]) b++;
     cells[b].push([i, j]);
   }
@@ -313,9 +441,9 @@
     const uv = geo.attributes.uv;
     for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * h / 2);
     const mesh = new THREE.InstancedMesh(geo, mats, cells[b].length);
+    mesh.castShadow = mesh.receiveShadow = true;
     cells[b].forEach(([i, j], n) => {
       dummy.position.set(i, 0, j);
-      dummy.rotation.y = 0;
       dummy.scale.set(0.85 + rand() * 0.2, 1, 0.85 + rand() * 0.2);
       dummy.updateMatrix();
       mesh.setMatrixAt(n, dummy.matrix);
@@ -323,16 +451,17 @@
     scene.add(mesh);
   });
 
-  // Ground + street grid
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x0d1122, roughness: 1 }));
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0xe1e6f1, roughness: 1 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), groundMat);
   ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
   scene.add(ground);
-  const grid = new THREE.GridHelper(N * 2, N / 2, 0x3a4a8c, 0x26315e);
+  const grid = new THREE.GridHelper(N * 2, N / 2, 0xc9d1e4, 0xc9d1e4);
   grid.position.y = 0.01;
-  grid.material.transparent = true; grid.material.opacity = 0.6;
+  grid.material.transparent = true; grid.material.opacity = 0.7;
   scene.add(grid);
 
-  // Route through street intersections, corners rounded tightly so it stays on the streets
+  // Route through street intersections; corners rounded tightly so it stays on the streets
   const corners = [[-24, 28], [-24, 8], [-8, 8], [-8, -8], [8, -8], [8, 12], [20, 12], [20, -20], [0, -20], [0, -32]];
   const pts = [];
   corners.forEach((c, k) => {
@@ -345,37 +474,48 @@
   });
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
   const SEG = 800, RAD = 8;
-  const tubeGeo = new THREE.TubeGeometry(curve, SEG, 0.14, RAD, false);
-  const tube = new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0xffb547 }));
-  scene.add(tube);
-  const glowGeo = new THREE.TubeGeometry(curve, SEG, 0.5, RAD, false);
-  const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending }));
-  scene.add(glow);
-  const ghost = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getSpacedPoints(400)), new THREE.LineDashedMaterial({ color: 0x9fb7ff, transparent: true, opacity: 0.35, dashSize: 0.5, gapSize: 0.5 }));
+  const tubeGeo = new THREE.TubeGeometry(curve, SEG, 0.16, RAD, false);
+  const tubeMat = new THREE.MeshBasicMaterial({ color: 0x5b6cf0 });
+  scene.add(new THREE.Mesh(tubeGeo, tubeMat));
+  const glowGeo = new THREE.TubeGeometry(curve, SEG, 0.55, RAD, false);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x5b6cf0, transparent: true, opacity: 0.16, depthWrite: false });
+  scene.add(new THREE.Mesh(glowGeo, glowMat));
+  const ghostMat = new THREE.LineDashedMaterial({ color: 0x5b6cf0, transparent: true, opacity: 0.4, dashSize: 0.5, gapSize: 0.5 });
+  const ghost = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getSpacedPoints(400)), ghostMat);
   ghost.computeLineDistances();
-  ghost.position.y = 0.02;
+  ghost.position.y = 0.03;
   scene.add(ghost);
 
-  // Runner: glowing head with its own light and a pulse ring
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 16), new THREE.MeshBasicMaterial({ color: 0xfff1d6 }));
-  const headLight = new THREE.PointLight(0xffb547, 3, 14, 2);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 48), new THREE.MeshBasicMaterial({ color: 0xffb547, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.4, roughness: 0.3 });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 16), headMat);
+  head.castShadow = true;
+  const headLight = new THREE.PointLight(0x5b6cf0, 0.6, 14, 2);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x5b6cf0, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 48), ringMat);
   ring.rotation.x = -Math.PI / 2;
   scene.add(head, headLight, ring);
 
-  // Floating dust for depth
-  const dustGeo = new THREE.BufferGeometry();
-  const dust = new Float32Array(600 * 3);
-  for (let k = 0; k < 600; k++) { dust[k * 3] = (rand() - 0.5) * 80; dust[k * 3 + 1] = rand() * 14 + 1; dust[k * 3 + 2] = (rand() - 0.5) * 80; }
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(dust, 3));
-  const dustPts = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0x9fb7ff, size: 0.06, transparent: true, opacity: 0.6 }));
-  scene.add(dustPts);
+  function applyPalette() {
+    const P = isDark() ? PAL.dark : PAL.light;
+    scene.fog.color.setHex(P.bg); scene.fog.density = P.fog;
+    sideMat.color.setHex(P.bld); sideMat.emissiveIntensity = P.win;
+    roofMat.color.setHex(P.roof);
+    groundMat.color.setHex(P.ground);
+    grid.material.color.setHex(P.grid);
+    hemi.color.setHex(P.sky); hemi.groundColor.setHex(P.gnd); hemi.intensity = P.hemi;
+    sun.color.setHex(P.sun); sun.intensity = P.sunI;
+    [tubeMat, glowMat, ghostMat, ringMat].forEach(m => m.color.setHex(P.accent));
+    headMat.color.setHex(P.head); headMat.emissive.setHex(P.head);
+    headLight.color.setHex(P.accent); headLight.intensity = P.glow;
+  }
+  onTheme.push(applyPalette);
+  applyPalette();
 
   function resize() {
     const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    camera.fov = w < 720 ? 62 : 50;
+    camera.fov = w < 820 ? 60 : 45;
     camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize);
@@ -386,26 +526,19 @@
 
   const camPos = new THREE.Vector3(), look = new THREE.Vector3(), tmp = new THREE.Vector3();
   const centre = new THREE.Vector3(-2, 0, -2);
+  const over = new THREE.Vector3(16, 32, 34);
   const smooth = THREE.MathUtils.smoothstep;
-  let p = reduce ? scrollProgress() : 0;
-  let first = true;
+  const clampT = t => Math.min(0.999, Math.max(0.001, t));
+  let p = reduce ? scrollProgress() : 0, first = true;
 
   function cameraFor(t, out, outLook) {
-    const at = curve.getPointAt(Math.min(0.999, Math.max(0.001, t)));
-    const tan = curve.getTangentAt(Math.min(0.999, Math.max(0.001, t)));
-    // chase cam: behind and above the runner, with a slight side offset
+    const at = curve.getPointAt(clampT(t));
+    const tan = curve.getTangentAt(clampT(t));
     const side = new THREE.Vector3(-tan.z, 0, tan.x);
-    const chase = at.clone().addScaledVector(tan, -8).addScaledVector(side, 3).add(new THREE.Vector3(0, 6, 0));
-    // overview at the start and finish
-    const over = new THREE.Vector3(14, 30, 30);
+    const chase = at.clone().addScaledVector(tan, -8).addScaledVector(side, 3).add(new THREE.Vector3(0, 6.5, 0));
     const k = Math.max(1 - smooth(t, 0, 0.14), smooth(t, 0.88, 1));
     out.copy(chase).lerp(over, k);
     outLook.copy(at).lerp(centre, k);
-  }
-
-  function updateHud(t) {
-    miEl.textContent = (t * TOTAL_MI).toFixed(1);
-    barEl.style.width = (t * 100).toFixed(1) + '%';
   }
 
   const clock = new THREE.Clock();
@@ -419,12 +552,12 @@
     tubeGeo.setDrawRange(0, segs * RAD * 6);
     glowGeo.setDrawRange(0, segs * RAD * 6);
     const hp = curve.getPointAt(Math.min(0.9999, Math.max(0, p)));
-    head.position.copy(hp).setY(0.4 + (reduce ? 0 : Math.sin(time * 4) * 0.05));
+    head.position.copy(hp).setY(0.42 + (reduce ? 0 : Math.sin(time * 3) * 0.05));
     headLight.position.copy(hp).setY(1.2);
     ring.position.copy(hp).setY(0.06);
-    const pulse = reduce ? 0.5 : (time * 0.8) % 1;
+    const pulse = reduce ? 0.5 : (time * 0.7) % 1;
     ring.scale.setScalar(1 + pulse * 3);
-    ring.material.opacity = 0.8 * (1 - pulse);
+    ringMat.opacity = 0.7 * (1 - pulse);
 
     cameraFor(p, tmp, look);
     if (!reduce) tmp.add(new THREE.Vector3(mx * 2.5, -my * 1.5, 0));
@@ -432,7 +565,6 @@
     camera.position.copy(camPos);
     camera.lookAt(look);
 
-    if (!reduce) dustPts.rotation.y = time * 0.01;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
