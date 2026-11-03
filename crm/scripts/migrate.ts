@@ -7,14 +7,22 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { TENANT_TABLES } from "../src/db/schema";
+import { APP_ROLE, dbUrls } from "../src/db/urls";
 
 async function main() {
-  const ownerUrl = process.env.DATABASE_OWNER_URL!;
-  const appUrl = process.env.DATABASE_URL!;
-  const appRole = decodeURIComponent(new URL(appUrl).username);
-  const ownerRole = decodeURIComponent(new URL(ownerUrl).username);
+  const { ownerDirect, app } = dbUrls();
+  if (!ownerDirect || !app) throw new Error("Set DATABASE_URL and DATABASE_APP_URL (or APP_DB_PASSWORD)");
+  const appRole = decodeURIComponent(new URL(app).username);
+  const ownerRole = decodeURIComponent(new URL(ownerDirect).username);
 
-  const pool = new Pool({ connectionString: ownerUrl });
+  const pool = new Pool({ connectionString: ownerDirect });
+  // On hosted Postgres (Neon), create the restricted app role on first run.
+  if (process.env.APP_DB_PASSWORD && !process.env.DATABASE_APP_URL) {
+    const { rows } = await pool.query("select 1 from pg_roles where rolname = $1", [APP_ROLE]);
+    const pw = process.env.APP_DB_PASSWORD.replace(/'/g, "''");
+    await pool.query(`${rows.length ? "ALTER" : "CREATE"} ROLE "${APP_ROLE}" WITH LOGIN PASSWORD '${pw}'`);
+    console.log(`✓ app role "${APP_ROLE}" ${rows.length ? "updated" : "created"}`);
+  }
   await migrate(drizzle(pool), { migrationsFolder: "./drizzle" });
   console.log("✓ schema migrations applied");
 
@@ -38,8 +46,8 @@ async function main() {
       await client.query(`REVOKE ALL ON tenants, domains, users, accounts, sessions, verification_tokens, memberships, audit_log, email_log FROM "${appRole}"`);
     } else {
       console.warn(
-        "⚠ DATABASE_URL and DATABASE_OWNER_URL use the same role. The owner bypasses RLS, so tenant isolation\n" +
-          "  would rely on application code only. Create a separate login role for DATABASE_URL in production.",
+        "⚠ The app and owner connections use the same role. The owner bypasses RLS, so tenant isolation\n" +
+          "  would rely on application code only. Set DATABASE_APP_URL or APP_DB_PASSWORD in production.",
       );
     }
     await client.query("COMMIT");

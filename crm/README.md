@@ -61,16 +61,18 @@ Open these (browsers resolve `*.localhost` automatically):
 
 With no `RESEND_API_KEY`, emails are not sent: open **/dev/inbox** on the same host and click the sign-in link.
 
-## Deploy (Vercel + Neon or Supabase)
+## Deploy (Vercel + Neon)
 
-1. Create a Postgres database. Create a second login role without `BYPASSRLS` for `DATABASE_URL`; use the owner role for `DATABASE_OWNER_URL`.
-2. Import the repo into Vercel with **Root Directory = `crm`**. Add the env vars from `.env.example`.
-3. Run `npm run db:migrate` (and `db:seed` for demo data) against the production database.
-4. Domains: add `yourcrm.com` and the wildcard `*.yourcrm.com` to the Vercel project (wildcards need Vercel nameservers). Set `PLATFORM_DOMAIN=yourcrm.com`.
-5. Optional: set `VERCEL_TOKEN` + `VERCEL_PROJECT_ID` so client custom domains are added to the project automatically when they're entered in Settings → Domain & email.
-6. Email: add a Resend API key and a verified default sender (`EMAIL_FROM_ADDRESS`). To send as a client's own domain, verify it in Resend, then tick "Sending domain verified" in the admin console.
-7. Google login (optional): set `AUTH_GOOGLE_ID/SECRET` and add `https://<host>/api/auth/callback/google` for each host. Google doesn't accept wildcard redirect URIs, so on custom domains magic links are the default.
-8. `vercel.json` schedules the daily task digest. Set `CRON_SECRET`.
+1. Import the repo into Vercel with **Root Directory = `crm`**.
+2. In the project's **Storage** tab, add a **Neon** Postgres database. This sets `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
+3. Add env vars: `AUTH_SECRET`, `APP_DB_PASSWORD` (a long random string), `PLATFORM_DOMAIN`, `PLATFORM_NAME`, `SUPER_ADMIN_EMAILS`, `CRON_SECRET`.
+4. Deploy. The build (see `vercel.json`) runs migrations, creates the restricted `crm_app` role, enables RLS, and seeds demo data if the database is empty.
+5. Domains: add `yourcrm.com` and the wildcard `*.yourcrm.com` (wildcards need Vercel nameservers). Without a custom domain, give each demo tenant its own `*.vercel.app` alias and list them in `DEMO_DOMAINS` (e.g. `acme=acme-crm.vercel.app`).
+6. Optional: `VERCEL_TOKEN` + `VERCEL_PROJECT_ID` so client custom domains are added to the project automatically.
+7. Email: set `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS` (a verified sender) so magic links go out. To send as a client's own domain, verify it in Resend, then tick "Sending domain verified" in the admin console.
+8. Google login (optional): set `AUTH_GOOGLE_ID/SECRET` and add `https://<host>/api/auth/callback/google` for each host.
+
+**Demo mode** (`DEMO_MODE=true`) adds one-click sign-in buttons for the seeded `*.test` accounts, including a demo platform admin. It's for showing the product only. Turn it off and remove the demo tenants before any real client data goes in.
 
 ## Not built yet (later phases from the plan)
 

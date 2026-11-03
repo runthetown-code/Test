@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import { ownerDb, schema, withTenant } from "@/db";
 import { brandedHtml, escapeHtml, sendEmail } from "@/lib/email";
-import { tenantUrl } from "@/lib/tenant";
+import { tenantBaseUrl } from "@/lib/tenant";
 
 /**
  * Daily digest: emails each assignee their due-today and overdue tasks, branded per tenant.
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         .orderBy(asc(schema.tasks.dueAt)),
     );
     const byAssignee = Map.groupBy(tasks.filter((t) => t.assigneeId), (t) => t.assigneeId!);
-    const base = tenantUrl(tenant.slug);
+    const base = await tenantBaseUrl(tenant);
 
     for (const [userId, list] of byAssignee) {
       const user = await ownerDb.query.users.findFirst({ where: eq(schema.users.id, userId) });

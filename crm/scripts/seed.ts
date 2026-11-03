@@ -229,6 +229,20 @@ async function seedTenant(spec: Spec) {
 }
 
 async function main() {
+  if (process.argv.includes("--if-empty")) {
+    const existing = await ownerDb.query.tenants.findFirst();
+    if (existing) {
+      console.log("✓ database already has tenants; skipping seed");
+      process.exit(0);
+    }
+  }
+  if (process.env.DEMO_MODE === "true") await upsertUser("admin@demo.test", "Demo Platform Admin", true);
+  // DEMO_DOMAINS=acme=acme-crm.vercel.app,harbor=harbor-crm.vercel.app
+  for (const pair of (process.env.DEMO_DOMAINS ?? "").split(",").filter(Boolean)) {
+    const [slug, host] = pair.split("=").map((s) => s.trim());
+    const spec = SPECS.find((s) => s.slug === slug);
+    if (spec && host) spec.domain = host;
+  }
   const supers = (process.env.SUPER_ADMIN_EMAILS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   for (const email of supers) await upsertUser(email, "Platform Admin", true);
   console.log(`✓ super admins: ${supers.join(", ") || "(none — set SUPER_ADMIN_EMAILS)"}`);

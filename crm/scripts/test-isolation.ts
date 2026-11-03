@@ -4,9 +4,11 @@
  */
 import "dotenv/config";
 import { Pool } from "pg";
+import { dbUrls } from "../src/db/urls";
 
-const app = new Pool({ connectionString: process.env.DATABASE_URL });
-const owner = new Pool({ connectionString: process.env.DATABASE_OWNER_URL });
+const urls = dbUrls();
+const app = new Pool({ connectionString: urls.app });
+const owner = new Pool({ connectionString: urls.ownerDirect });
 let failures = 0;
 function check(name: string, ok: boolean, detail = "") {
   console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` — ${detail}` : ""}`);

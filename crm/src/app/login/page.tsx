@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth, googleEnabled, signIn } from "@/auth";
+import { and, eq, like } from "drizzle-orm";
+import { demoSignIn } from "@/actions/demo";
 import { BrandMark } from "@/components/brand";
+import { ownerDb, schema } from "@/db";
 import { emailDeliveryEnabled } from "@/lib/email";
 import { getHostContext, PLATFORM_NAME } from "@/lib/tenant";
 
@@ -40,6 +43,22 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     "use server";
     await signIn("google", { redirectTo: home });
   }
+
+  // Demo mode: list the seeded demo accounts that can sign in on this host.
+  const demoAccounts =
+    process.env.DEMO_MODE === "true"
+      ? tenant
+        ? await ownerDb
+            .select({ email: schema.users.email, name: schema.users.name, role: schema.memberships.role })
+            .from(schema.memberships)
+            .innerJoin(schema.users, eq(schema.users.id, schema.memberships.userId))
+            .where(and(eq(schema.memberships.tenantId, tenant.id), like(schema.users.email, "%.test")))
+        : await ownerDb
+            .select({ email: schema.users.email, name: schema.users.name })
+            .from(schema.users)
+            .where(and(eq(schema.users.isSuperAdmin, true), like(schema.users.email, "%.test")))
+            .then((r) => r.map((u) => ({ ...u, role: "platform admin" })))
+      : [];
 
   const headline = tenant?.loginHeadline || (tenant ? `Welcome to ${tenant.name}` : `${PLATFORM_NAME} — Platform admin`);
   const subtext =
@@ -107,7 +126,24 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <button className="btn-primary mt-3 w-full py-2.5">Email me a sign-in link</button>
           </form>
 
-          {!emailDeliveryEnabled && (
+          {demoAccounts.length > 0 && (
+            <div className="mt-6 rounded-xl border border-brand/20 bg-brand-soft/50 p-4">
+              <div className="text-sm font-medium">Demo accounts</div>
+              <p className="mb-3 text-xs text-zinc-600">One-click sign-in for this demo. Each role sees different things.</p>
+              <div className="space-y-2">
+                {demoAccounts.map((a) => (
+                  <form key={a.email} action={demoSignIn.bind(null, a.email)}>
+                    <button className="btn-secondary w-full justify-between">
+                      <span className="truncate">{a.name ?? a.email}</span>
+                      <span className="text-xs capitalize text-zinc-500">{a.role}</span>
+                    </button>
+                  </form>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!emailDeliveryEnabled && process.env.NODE_ENV !== "production" && (
             <p className="mt-6 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Development mode: emails aren&apos;t sent. Open{" "}
               <a href="/dev/inbox" className="font-medium underline">

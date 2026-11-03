@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { dbUrls } from "./urls";
 
 type DB = NodePgDatabase<typeof schema>;
 
@@ -12,11 +13,9 @@ function makePool(url: string | undefined, name: string) {
   return new Pool({ connectionString: url, max: 5 });
 }
 
-const ownerPool = (globalForDb.ownerPool ??= makePool(
-  process.env.DATABASE_OWNER_URL ?? process.env.DATABASE_URL,
-  "DATABASE_OWNER_URL",
-));
-const appPool = (globalForDb.appPool ??= makePool(process.env.DATABASE_URL, "DATABASE_URL"));
+const urls = dbUrls();
+const ownerPool = (globalForDb.ownerPool ??= makePool(urls.ownerPooled, "DATABASE_URL"));
+const appPool = (globalForDb.appPool ??= makePool(urls.app, "DATABASE_APP_URL (or APP_DB_PASSWORD)"));
 
 /**
  * Platform connection: tenants, users, memberships, auth, audit and email tables.

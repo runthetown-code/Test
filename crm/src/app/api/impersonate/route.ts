@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { and, eq, gt, like } from "drizzle-orm";
 import { ownerDb, schema } from "@/db";
+import { createSession } from "@/lib/session";
 import { getHostContext } from "@/lib/tenant";
 
 /** Exchanges a support-access token (minted in the admin console) for a session on this tenant host. */
@@ -27,12 +28,8 @@ export async function GET(req: Request) {
   const user = await ownerDb.query.users.findFirst({ where: eq(schema.users.id, userId) });
   if (!user?.isSuperAdmin) return new Response("Forbidden", { status: 403 });
 
-  const sessionToken = randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + 8 * 3600_000);
-  await ownerDb.insert(schema.sessions).values({ sessionToken, userId, expires });
-
   const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
-  const secure = proto === "https";
-  const cookie = `${secure ? "__Secure-" : ""}authjs.session-token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Expires=${expires.toUTCString()}${secure ? "; Secure" : ""}`;
+  const c = await createSession(userId, { secure: proto === "https", hours: 8 });
+  const cookie = `${c.name}=${c.value}; Path=/; HttpOnly; SameSite=Lax; Expires=${c.options.expires.toUTCString()}${c.options.secure ? "; Secure" : ""}`;
   return new Response(null, { status: 302, headers: { Location: "/dashboard", "Set-Cookie": cookie } });
 }

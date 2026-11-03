@@ -9,7 +9,7 @@ import { ownerDb, schema } from "@/db";
 import { requireSuperAdmin } from "@/lib/access";
 import { slugify } from "@/lib/format";
 import { createTenantWithDefaults, RESERVED_SLUGS } from "@/lib/provision";
-import { tenantUrl } from "@/lib/tenant";
+import { tenantBaseUrl } from "@/lib/tenant";
 import type { ActionState } from "./settings";
 
 export async function createTenant(_: ActionState, fd: FormData): Promise<ActionState> {
@@ -74,5 +74,5 @@ export async function impersonate(tenantId: string) {
     expires: new Date(Date.now() + 60_000),
   });
   await ownerDb.insert(schema.auditLog).values({ tenantId: tenant.id, actorUserId: admin.id, action: "support.access", detail: `${admin.email} opened ${tenant.name}` });
-  redirect(tenantUrl(tenant.slug, `/api/impersonate?token=${token}`));
+  redirect(`${await tenantBaseUrl(tenant)}/api/impersonate?token=${token}`);
 }

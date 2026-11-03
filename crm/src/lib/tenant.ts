@@ -61,3 +61,11 @@ export function platformUrl(path = "") {
   const proto = PLATFORM_DOMAIN.startsWith("localhost") ? "http" : "https";
   return `${proto}://${PLATFORM_DOMAIN}${path}`;
 }
+
+/** Public URL for a tenant: its first verified custom domain, else its platform subdomain. */
+export async function tenantBaseUrl(t: { id: string; slug: string }) {
+  const d = await ownerDb.query.domains.findFirst({
+    where: and(eq(schema.domains.tenantId, t.id), eq(schema.domains.verified, true)),
+  });
+  return d ? `https://${d.hostname}` : tenantUrl(t.slug);
+}

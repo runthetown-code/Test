@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/client";
 import { Avatar, PageHeader, Stat } from "@/components/ui";
 import { getMembers } from "@/lib/access";
 import { money, relTime } from "@/lib/format";
-import { tenantUrl } from "@/lib/tenant";
+import { tenantBaseUrl } from "@/lib/tenant";
 import { usageByTenant } from "../../usage";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function TenantAdmin({ params }: { params: Promise<{ id: st
     (await usageByTenant()).get(t.id),
     await ownerDb.select().from(schema.auditLog).where(eq(schema.auditLog.tenantId, t.id)).orderBy(desc(schema.auditLog.createdAt)).limit(10),
   ];
-  const url = tenantUrl(t.slug);
+  const url = await tenantBaseUrl(t);
 
   return (
     <>
